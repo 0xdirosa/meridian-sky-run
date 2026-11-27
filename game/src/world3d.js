@@ -1,6 +1,13 @@
 // Flight physics, the course, and the rules: rings, crates, hazards, fuel,
 // damage, and the landing that ends every sortie. One fixed step at a time.
+//
+// This is the 3D world: the same rules as the 2D game, but the ground is
+// a real heightmap (terrain.js) and peaks are solid cones in it — flying
+// into terrain is a crash, not a sprite overlap. Positions are still the
+// sim's own units (x -1..1, alt 0..1, distance in metres); the renderer
+// maps them to metres (x * 380, alt * 800, z = -distance).
 
+import { ALT_SCALE, COURSE_HALF_WIDTH, createTerrain } from './terrain.js';
 import { COURSE_LENGTH, LANDING, PLANE, RING, SCORE, STEP } from './config.js';
 import { missionById } from './missions.js';
 import { createRandom } from './random.js';
@@ -112,7 +119,9 @@ export function createWorld(random) {
     lightningTimer: 4,
     invulnerable: 0,
     objects: [],
+    terrain: null,
   };
+  let terrainCache = null;
 
   function reset(missionId, seed) {
     const mission = missionById(missionId);
@@ -151,6 +160,15 @@ export function createWorld(random) {
     // Re-seed the course from the mission seed so a seed always builds the
     // same course, whatever ran before it.
     state.objects = buildCourse(createRandom(seed * 7919 + missionId * 104729 + 13), mission);
+    // The terrain is built from the same seed and the same peaks, and
+    // cached: the title attract mode resets often, and a rebuild is a
+    // few thousand height samples.
+    const key = `${missionId}:${seed}`;
+    if (!terrainCache || terrainCache.key !== key) {
+      const peaks = state.objects.filter((o) => o.kind === 'peak');
+      terrainCache = { key, terrain: createTerrain(mission, peaks, seed) };
+    }
+    state.terrain = terrainCache.terrain;
   }
 
   function crash(reason) {
@@ -282,13 +300,6 @@ export function createWorld(random) {
           obj.passed = true;
           state.missed += 1;
         }
-      } else if (obj.kind === 'peak' && Math.abs(dist) < 30) {
-        if (dx < obj.halfWidth + 0.04 && state.alt < obj.top) {
-          const ev = hitObstacle('peak', 34, 'Clipped a peak — pull up or go around!');
-          if (ev === EVENT_CRASH) return EVENT_CRASH;
-          events |= ev;
-          obj.done = true;
-        }
       } else if (obj.kind === 'balloon' && !obj.done && Math.abs(dist) < 26) {
         if (dx < 0.14 && da < 0.14) {
           const ev = hitObstacle('balloon', 22, 'Hit a balloon — watch the sky!');
@@ -311,6 +322,9 @@ export function createWorld(random) {
           obj.done = true;
         }
       }
+      // Peaks are no longer a sprite check: they are cones in the
+      // heightmap, and the terrain check below ends the flight when the
+      // plane meets one.
     }
 
     if (!state.objectiveComplete && state.goalDone >= goalTotal) {
@@ -328,14 +342,19 @@ export function createWorld(random) {
       state.messageTimer = 4;
     }
 
-    if (state.alt <= 0.005) {
-      state.alt = 0;
+    // Terrain: the plane meets the ground (or a peak) when its altitude
+    // in metres drops to the heightmap plus a small clearance.
+    const ground = state.terrain.heightAt(state.x * COURSE_HALF_WIDTH, -state.distance);
+    const planeY = state.alt * ALT_SCALE;
+    if (planeY <= ground + 2) {
+      state.alt = Math.max(0, ground / ALT_SCALE);
       if (state.distance >= RUNWAY_START && state.distance <= RUNWAY_END && Math.abs(state.x) <= 0.22) {
         return events | land();
       }
       if (state.distance >= RUNWAY_START && state.distance <= RUNWAY_END) {
         return events | crash('Touched down beside the runway.');
       }
+      if (ground > 120) return events | crash('Hit a peak — fly around it or over it.');
       return events | crash('Hit the ground short of the runway.');
     }
     if (state.distance > RUNWAY_END + 40 && state.phase !== 'landed') {

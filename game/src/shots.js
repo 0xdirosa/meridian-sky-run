@@ -4,7 +4,7 @@
 // same seed always gives the same frame. No shot is hand-drawn.
 
 import { STEP } from './config.js';
-import { SCREEN_CRASHED, SCREEN_LANDED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+import { SCREEN_CRASHED, SCREEN_LANDED, SCREEN_PLAY, SCREEN_TITLE } from './hud.js';
 
 function simulate(world, maxSeconds, stopWhen) {
   const steps = Math.floor(maxSeconds / STEP);
@@ -20,7 +20,16 @@ function simulate(world, maxSeconds, stopWhen) {
 export function stageShot(name, world) {
   if (name === 'storm') {
     world.reset(2, 7);
-    const state = simulate(world, 46, (s) => s.distance > 3600);
+    // Stop past 3600 m, but not while a ring is right at the camera: a
+    // torus 10 m away fills a quarter of the frame with gold tube.
+    const state = simulate(world, 46, (s) => {
+      if (s.distance <= 3600) return false;
+      for (const obj of s.objects) {
+        const d = obj.coursePos - s.distance;
+        if (obj.kind === 'ring' && !obj.done && d > -50 && d < 250) return false;
+      }
+      return true;
+    });
     state.lightning = 0.18;
     return { screen: SCREEN_PLAY, best: 0, mission: 2 };
   }

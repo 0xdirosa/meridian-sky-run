@@ -1,13 +1,15 @@
 // Boot and the one loop: input is read every frame, the world advances in
-// fixed 1/60 s steps, and the renderer paints what is there. The game moves
-// between title, brief, play, paused, landed and crashed screens.
+// fixed 1/60 s steps, and the two canvases paint what is there — the WebGL
+// canvas draws the 3D world, the HUD canvas draws the panel, the HUD and
+// the screens on top of it. The game moves between title, brief, play,
+// paused, landed and crashed screens.
 //
 // ?seed=N fixes the course. ?shot=cover|ring|storm|land (with &seed=N)
 // stages that scene instead of running the loop, paints it twice and sets
 // window.__shotReady for a screenshot.
 import { BEST_KEY, PROGRESS_KEY, STEP } from './config.js';
 import { createRandom } from './random.js';
-import { createWorld, EVENT_CRASH, EVENT_CRATE, EVENT_HIT, EVENT_LANDED, EVENT_OBJECTIVE, EVENT_RING } from './world.js';
+import { createWorld, EVENT_CRASH, EVENT_CRATE, EVENT_HIT, EVENT_LANDED, EVENT_OBJECTIVE, EVENT_RING } from './world3d.js';
 import {
   ACTION_CONFIRM,
   ACTION_GEAR,
@@ -19,7 +21,8 @@ import {
   createInput,
 } from './input.js';
 import { createAudio } from './audio.js';
-import { createRenderer, SCREEN_BRIEF, SCREEN_CRASHED, SCREEN_LANDED, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+import { createRenderer3D } from './render3d.js';
+import { createHud, SCREEN_BRIEF, SCREEN_CRASHED, SCREEN_LANDED, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './hud.js';
 import { stageShot } from './shots.js';
 
 const MAX_FRAME = 0.25;
@@ -30,9 +33,18 @@ const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
 const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
 
 const canvas = document.getElementById('game');
+const hudCanvas = document.getElementById('hud');
 const status = document.getElementById('status');
 const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+let renderer;
+let hud;
+try {
+  renderer = createRenderer3D(canvas);
+  hud = createHud(hudCanvas);
+} catch (err) {
+  status.textContent = `Meridian Sky Run needs WebGL: ${err.message}`;
+  throw err;
+}
 const audio = createAudio();
 
 function readNumber(key) {
@@ -55,7 +67,8 @@ function runShot(name) {
   const scene = stageShot(name, world);
   let painted = 0;
   function paint() {
-    renderer.draw(world.state, scene.screen, scene.best, 3);
+    renderer.draw(world.state);
+    hud.draw(world.state, scene.screen, scene.best, 3);
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else window.__shotReady = true;
@@ -192,7 +205,8 @@ function runGame() {
       accumulator = 0;
       audio.engine(world.state, false);
     }
-    renderer.draw(world.state, screen, best, unlocked);
+    renderer.draw(world.state);
+    hud.draw(world.state, screen, best, unlocked);
   }
 
   world.reset(0, seed);
