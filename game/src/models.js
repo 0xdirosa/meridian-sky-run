@@ -243,10 +243,10 @@ export function buildBird() {
 }
 
 export function buildStormCell() {
-  // A dark thunderhead. Squash 0.8 (not flatter) so it reads as a cloud
-  // mass from the side, not a floating disc.
+  // A dark thunderhead. Near-round (squash 0.9 / 1.05) so it reads as a
+  // cloud mass from the side, not a floating disc.
   const b = new Builder();
-  b.sphere(0, 0, 0, 60, hexRgb('#262c42'), 8, 12, 0.8);
+  b.sphere(0, 0, 0, 60, hexRgb('#262c42'), 8, 12, 0.9);
   return b.mesh();
 }
 
