@@ -120,16 +120,36 @@ export function createRenderer(canvas) {
       ctx.beginPath();
       ctx.ellipse(cx, cy + c.s * 0.22, c.s * 1.05, c.s * 0.3, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = cloudFill;
-      ctx.beginPath();
-      for (let p = 0; p < c.puffs; p += 1) {
-        const px = cx + (p - c.puffs / 2) * c.s * 0.55;
-        const py = cy - Math.abs(p - c.puffs / 2) * c.s * 0.12;
-        const pr = c.s * (0.42 + 0.1 * ((p * 37) % 3));
-        ctx.moveTo(px + pr, py);
-        ctx.arc(px, py, pr, 0, Math.PI * 2);
+      // Each puff is shaded on its own: a lit top fading to a cool base,
+      // so the cloud reads as a volume, not a flat white blob. At night
+      // the same trick turns each puff into a glass bubble, so night
+      // clouds stay one flat mass, as before.
+      if (m.night) {
+        ctx.fillStyle = cloudFill;
+        ctx.beginPath();
+        for (let p = 0; p < c.puffs; p += 1) {
+          const px = cx + (p - c.puffs / 2) * c.s * 0.55;
+          const py = cy - Math.abs(p - c.puffs / 2) * c.s * 0.12;
+          const pr = c.s * (0.42 + 0.1 * ((p * 37) % 3));
+          ctx.moveTo(px + pr, py);
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      } else {
+        for (let p = 0; p < c.puffs; p += 1) {
+          const px = cx + (p - c.puffs / 2) * c.s * 0.55;
+          const py = cy - Math.abs(p - c.puffs / 2) * c.s * 0.12;
+          const pr = c.s * (0.42 + 0.1 * ((p * 37) % 3));
+          const pg = ctx.createRadialGradient(px - pr * 0.25, py - pr * 0.35, pr * 0.1, px, py, pr);
+          pg.addColorStop(0, 'rgba(255,255,255,0.98)');
+          pg.addColorStop(0.7, 'rgba(240,246,255,0.92)');
+          pg.addColorStop(1, 'rgba(198,216,240,0.85)');
+          ctx.fillStyle = pg;
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-      ctx.fill();
       ctx.globalAlpha = 1;
     };
     for (const c of farClouds) drawCloud({ ...c, puffs: 2 }, 0.55);
@@ -174,8 +194,8 @@ export function createRenderer(canvas) {
     // tone so the ground reads as one valley, not a quilt.
     const band = 130;
     const offset = state.distance % band;
-    const stripeA = blend(m.groundA, m.groundB, 0.35);
-    const stripeB = blend(m.groundA, m.groundB, 0.65);
+    const stripeA = blend(m.groundA, m.groundB, 0.44);
+    const stripeB = blend(m.groundA, m.groundB, 0.56);
     for (let i = 0; i < 13; i += 1) {
       const dFar = 1500 - i * band - offset;
       const dNear = dFar + band;
@@ -882,11 +902,40 @@ export function createRenderer(canvas) {
     drawSky(state);
     ridge(state, FIELD.horizonY + 6, 46, state.mission.mountainFar, 1.3, 60, 'rgba(255,255,255,0.18)');
     ridge(state, FIELD.horizonY + 10, 30, state.mission.mountain, 4.1, 140, 'rgba(255,255,255,0.25)');
+    // Atmospheric haze: the far ridge fades into the sky at the horizon
+    // instead of ending in a hard dark silhouette.
+    const haze = ctx.createLinearGradient(0, FIELD.horizonY - 60, 0, FIELD.horizonY + 24);
+    haze.addColorStop(0, 'rgba(255,255,255,0)');
+    haze.addColorStop(0.55, state.mission.skyLow);
+    haze.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, FIELD.horizonY - 60, W, 84);
+    ctx.globalAlpha = 1;
     drawGround(state);
     drawRunway(state);
     const sorted = [...state.objects].sort((a, b) => (b.coursePos - state.distance) - (a.coursePos - state.distance));
     for (const obj of sorted) drawObject(state, obj);
     drawAircraft(state);
+    // Wind streaks: thin fast lines at the frame edges when the throttle
+    // is high, so speed reads even when the ground is far below.
+    const streak = Math.max(0, (state.speed - 200) / 130);
+    if (streak > 0) {
+      const n = Math.floor(streak * 14);
+      for (let i = 0; i < n; i += 1) {
+        const left = i % 2 === 0;
+        const sx = left
+          ? ((i * 197 + state.time * 900) % 180)
+          : W - ((i * 197 + state.time * 900) % 180);
+        const sy = 120 + ((i * 311) % 420);
+        ctx.strokeStyle = `rgba(255,255,255,${0.28 * streak})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - (left ? -1 : 1) * (40 + streak * 40), sy + 6);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 
