@@ -489,7 +489,8 @@ export function createRenderer(canvas) {
     ctx.translate(cx, cy);
     ctx.rotate(bank * 0.9);
     if (state.invulnerable > 0 && Math.floor(state.time * 12) % 2 === 0) ctx.globalAlpha = 0.45;
-    // Wings: shaded, with a dark aileron line and red tips.
+    // Wings: shaded, with aileron and flap lines, red tips and a glowing
+    // nav light. A dark root fairing blends each wing into the fuselage.
     for (const side of [-1, 1]) {
       const wing = ctx.createLinearGradient(0, -8, 0, 44);
       wing.addColorStop(0, '#dbe5f2');
@@ -508,8 +509,27 @@ export function createRenderer(canvas) {
       ctx.moveTo(side * 30, 8);
       ctx.lineTo(side * 160, 32);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(side * 44, 16);
+      ctx.lineTo(side * 156, 38);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(32,36,46,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(side * 12, -4);
+      ctx.lineTo(side * 44, 12);
+      ctx.lineTo(side * 40, 20);
+      ctx.lineTo(side * 10, 8);
+      ctx.closePath();
+      ctx.fill();
       ctx.fillStyle = '#d64541';
       ctx.fillRect(side > 0 ? 146 : -168, 26, 22, 14);
+      const navGlow = ctx.createRadialGradient(side * 168, 33, 1, side * 168, 33, 12);
+      navGlow.addColorStop(0, side < 0 ? 'rgba(255,59,48,0.8)' : 'rgba(55,214,122,0.8)');
+      navGlow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = navGlow;
+      ctx.beginPath();
+      ctx.arc(side * 168, 33, 12, 0, Math.PI * 2);
+      ctx.fill();
     }
     // Tail.
     ctx.fillStyle = '#aebdd2';
@@ -535,6 +555,10 @@ export function createRenderer(canvas) {
     ctx.lineTo(-10, -122);
     ctx.closePath();
     ctx.fill();
+    ctx.fillStyle = '#eef3fa';
+    ctx.font = `800 13px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('77', 0, -100);
     // Engine exhaust glow, stronger at full throttle.
     if (state.throttle > 0.6) {
       const glow = ctx.createRadialGradient(0, 66, 2, 0, 66, 22);
@@ -545,7 +569,8 @@ export function createRenderer(canvas) {
       ctx.arc(0, 66, 22, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Fuselage.
+    // Fuselage: shaded metal with a spine highlight, a belly shadow,
+    // panel lines, rivets along the spine, and intake scoops.
     const body = ctx.createLinearGradient(-26, 0, 26, 0);
     body.addColorStop(0, '#7e93b5');
     body.addColorStop(0.5, '#eef3fa');
@@ -559,22 +584,58 @@ export function createRenderer(canvas) {
     ctx.quadraticCurveTo(-27, 34, -26, -20);
     ctx.quadraticCurveTo(-24, -90, 0, -128);
     ctx.fill();
-    // Canopy.
-    ctx.fillStyle = '#17324e';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-7, -40, 4, 62, 0.06, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(32,36,46,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(9, 30, 7, 34, -0.06, 0, Math.PI * 2);
+    ctx.fill();
+    // Panel lines across the fuselage.
+    ctx.strokeStyle = 'rgba(32,36,46,0.4)';
+    ctx.lineWidth = 1.2;
+    for (const py of [-48, -8, 28]) {
+      ctx.beginPath();
+      ctx.moveTo(-24, py);
+      ctx.quadraticCurveTo(0, py + 4, 24, py);
+      ctx.stroke();
+    }
+    // Rivets along the spine.
+    ctx.fillStyle = 'rgba(32,36,46,0.45)';
+    for (let ry = -118; ry <= 56; ry += 12) {
+      ctx.beginPath();
+      ctx.arc(0, ry, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Intake scoops.
+    ctx.fillStyle = '#20242e';
+    ctx.beginPath();
+    ctx.ellipse(-20, -14, 4, 10, 0.15, 0, Math.PI * 2);
+    ctx.ellipse(20, -14, 4, 10, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Canopy: framed, tinted, with a long reflection.
+    const canopy = ctx.createLinearGradient(0, -102, 0, -42);
+    canopy.addColorStop(0, '#0e2438');
+    canopy.addColorStop(1, '#2c5a86');
+    ctx.fillStyle = canopy;
     ctx.beginPath();
     ctx.ellipse(0, -72, 13, 30, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(160,215,255,0.75)';
+    ctx.strokeStyle = 'rgba(10,14,24,0.8)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(190,225,255,0.85)';
     ctx.beginPath();
-    ctx.ellipse(-4, -80, 5, 14, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(-4, -82, 4.5, 13, -0.2, 0, Math.PI * 2);
     ctx.fill();
-    // Stripe + registration.
+    ctx.fillStyle = 'rgba(190,225,255,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(3, -58, 3, 8, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Stripe.
     ctx.fillStyle = '#d64541';
     ctx.fillRect(-25, -8, 50, 7);
-    ctx.fillStyle = '#20242e';
-    ctx.font = `800 13px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.fillText('N-77MS', 0, 52);
     // Nav lights.
     ctx.fillStyle = '#ff3b30';
     ctx.beginPath();
@@ -621,7 +682,15 @@ export function createRenderer(canvas) {
     text(ctx, label, x + w / 2, y + h + 15, 11, PALETTE.muted, 'center', 700);
   }
 
-  function dial(ctx, cx, cy, r, frac, label, value) {
+  function dial(ctx, cx, cy, r, frac, label, value, scale) {
+    // Bezel: a raised metal ring around the glass.
+    ctx.fillStyle = '#232b3a';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#4a5a75';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.fillStyle = '#0b0f18';
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -629,7 +698,8 @@ export function createRenderer(canvas) {
     ctx.strokeStyle = PALETTE.panelEdge;
     ctx.lineWidth = 2;
     ctx.stroke();
-    // Tick marks around the sweep, major every quarter.
+    // Tick marks around the sweep, major every quarter, with numerals
+    // at min, mid and max so the dial reads like a real instrument.
     for (let i = 0; i <= 8; i += 1) {
       const a = -Math.PI * 0.75 + (i / 8) * Math.PI * 1.5;
       const major = i % 4 === 0;
@@ -639,6 +709,11 @@ export function createRenderer(canvas) {
       ctx.moveTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4));
       ctx.lineTo(cx + Math.cos(a) * (r - (major ? 12 : 9)), cy + Math.sin(a) * (r - (major ? 12 : 9)));
       ctx.stroke();
+      if (scale && i % 8 === 0) {
+        const nx = cx + Math.cos(a) * (r - 16);
+        const ny = cy + Math.sin(a) * (r - 16) + 3;
+        text(ctx, scale[i / 8], nx, ny, 8, '#8fa3bd', 'center', 700);
+      }
     }
     const a = -Math.PI * 0.75 + frac * Math.PI * 1.5;
     ctx.strokeStyle = '#ffd23e';
@@ -646,6 +721,16 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6));
+    ctx.stroke();
+    ctx.fillStyle = '#ffd23e';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Glass glare: a soft arc at the top-left of the dial.
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 7, Math.PI * 1.05, Math.PI * 1.5);
     ctx.stroke();
     text(ctx, label, cx, cy + r + 15, 11, PALETTE.muted, 'center', 700);
     text(ctx, value, cx, cy + 5, 13, PALETTE.text, 'center', 800);
@@ -688,14 +773,31 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.arc(hx, hy, 42, 0, Math.PI * 2);
     ctx.stroke();
+    // Bank-angle ticks around the rim.
+    ctx.strokeStyle = '#c7d3e6';
+    ctx.lineWidth = 2;
+    for (const deg of [-60, -30, 30, 60]) {
+      const a = -Math.PI / 2 + (deg * Math.PI) / 180;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(a) * 42, hy + Math.sin(a) * 42);
+      ctx.lineTo(hx + Math.cos(a) * 36, hy + Math.sin(a) * 36);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#ffd23e';
+    ctx.beginPath();
+    ctx.moveTo(hx, hy - 42);
+    ctx.lineTo(hx - 4, hy - 34);
+    ctx.lineTo(hx + 4, hy - 34);
+    ctx.closePath();
+    ctx.fill();
     ctx.fillStyle = '#ffd23e';
     ctx.fillRect(hx - 22, hy - 2, 16, 3);
     ctx.fillRect(hx + 6, hy - 2, 16, 3);
     text(ctx, 'ATTITUDE', hx, hy + 58, 11, PALETTE.muted, 'center', 700);
     // Dials.
-    dial(ctx, 300, 656, 40, state.speed / 340, 'AIRSPEED', `${Math.round(state.speed)}`);
-    dial(ctx, 420, 656, 40, state.alt, 'ALTITUDE', `${Math.round(state.alt * 9000)}`);
-    dial(ctx, 540, 656, 40, state.throttle, 'THROTTLE', `${Math.round(state.throttle * 100)}%`);
+    dial(ctx, 300, 656, 40, state.speed / 340, 'AIRSPEED', `${Math.round(state.speed)}`, ['0', '340']);
+    dial(ctx, 420, 656, 40, state.alt, 'ALTITUDE', `${Math.round(state.alt * 9000)}`, ['0', '9000']);
+    dial(ctx, 540, 656, 40, state.throttle, 'THROTTLE', `${Math.round(state.throttle * 100)}%`, ['0', '100']);
     // Fuel + damage gauges.
     gauge(ctx, 640, 618, 26, 76, state.fuel / 100, state.fuel < 20 ? PALETTE.red : PALETTE.amber, 'FUEL');
     gauge(ctx, 690, 618, 26, 76, 1 - state.damage / 100, state.damage > 70 ? PALETTE.red : PALETTE.green, 'HULL');
